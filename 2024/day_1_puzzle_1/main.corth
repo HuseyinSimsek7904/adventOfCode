@@ -1,0 +1,115 @@
+macro malloc:ARRAY-SIZE 0x100000 endmacro
+macro malloc:AVAIL-STACK-SIZE 0x100 endmacro
+
+include "dynamic/malloc.corth"
+include "dynamic/utils.corth"
+include "linux_x86/stdio.corth"
+include "collections/list64.corth"
+
+proc merge-sorted
+  // ptr: list int: left int: middle int: right ->
+  ptr int int int ->
+in let right in
+
+  // INPLACE PARAMETER LOADING!!!
+  memory middle sizeof(int) in
+    middle !64
+
+    let list left in
+      memory _left  sizeof(int) and
+             _right sizeof(int) in
+
+        left       _left  !64
+        middle @64 _right !64
+
+        while _left @64 middle @64 < _right @64 right < & do
+          _left @64 list list64:get _right @64 list list64:get < if
+            _left @inc64
+          else
+            _right @64 list list64:get
+
+            _right @64 while dup _left @64 > do peek i in
+              i dec list list64:get i list list64:set
+            end dec end drop
+
+            _left @64 list list64:set
+
+            _left @inc64
+            middle @inc64
+            _right @inc64
+          end
+        end
+      end
+    end
+  end
+end end
+
+proc merge-sort
+  // ptr: list int: left int: right
+  ptr int int ->
+in let list left right in
+  right left - 1 <= if return end
+
+  left right avg2 let middle in
+    list left   middle merge-sort
+    list middle right  merge-sort
+
+    list left middle right merge-sorted
+  end
+end end
+
+proc main
+  int int -> int
+in let argc argv in
+  malloc:init
+
+  "data.txt" drop fopen-r let file in
+    file isn-pos if
+      "could not open file\n" eputs
+      1 exit drop
+    end
+
+    memory left-list  sizeof(ptr) and
+           right-list sizeof(ptr) in
+
+      list64:init left-list !64
+      list64:init right-list !64
+
+      memory buffer        3 and
+             left-buffer   5 and
+             right-buffer  5 and
+             left          sizeof(int) and
+             right         sizeof(int) in
+
+        while
+          left-buffer  5 file fgets drop
+          buffer       3 file fgets drop
+          right-buffer 5 file fgets drop
+          buffer       1 file fgets isn-zero do
+
+          left-buffer  5 left  convud drop
+          right-buffer 5 right convud drop
+
+          left  @64 left-list  list64:append
+          right @64 right-list list64:append
+        end
+      end
+
+      left-list  0 left-list  list64:length merge-sort
+      right-list 0 right-list list64:length merge-sort
+
+      memory total sizeof(int) in
+        0 total !64
+
+        0 while dup left-list list64:length < do peek i in
+          i left-list list64:get putu " " puts i right-list list64:get putu putnl
+          i left-list list64:get i right-list list64:get - abs total @64 + total !64
+        end inc end drop
+
+        total @64 putu putnl
+      end
+
+      file fclose drop
+    end
+  end
+end 0 end
