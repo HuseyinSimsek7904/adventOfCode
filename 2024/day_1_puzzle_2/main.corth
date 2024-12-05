@@ -1,0 +1,69 @@
+macro malloc:ARRAY-SIZE 0x100000 endmacro
+macro malloc:AVAIL-STACK-SIZE 0x100 endmacro
+
+include "dynamic/malloc.corth"
+include "dynamic/utils.corth"
+include "linux_x86/stdio.corth"
+include "collections/list64.corth"
+
+macro array16:addr swp 2 * + endmacro
+macro array16:get  array16:addr @16 endmacro
+macro array16:set  array16:addr !16 endmacro
+
+macro @inc16 let _ptr_ in _ptr_ @16 inc _ptr_ !16 end endmacro
+
+proc main
+  int int -> int
+in let argc argv in
+  malloc:init
+
+  "data.txt" drop fopen-r let file in
+    file isn-pos if
+      "could not open file\n" eputs
+      1 exit drop
+    end
+
+    // hashmap: 100000 entries where each item is 2 bytes = 20,000 bytes
+    memory list    sizeof(ptr) and
+           hashmap 200000      in
+
+      list64:init list !64
+
+      0 while dup 100000 < do peek i in
+        0 hashmap i array16:set
+      end inc end drop
+
+      memory buffer        3           and
+             left-buffer   5           and
+             right-buffer  5           and
+             left          sizeof(int) and
+             right         sizeof(int) in
+
+        while
+          left-buffer  5 file fgets drop
+          buffer       3 file fgets drop
+          right-buffer 5 file fgets drop
+          buffer       1 file fgets isn-zero do
+
+          left-buffer  5 left  convud drop
+          right-buffer 5 right convud drop
+
+          left @64 list list64:append
+          right @64 hashmap array16:addr @inc16
+        end
+      end
+
+      memory total sizeof(int) in
+        0 total !64
+
+        0 while dup list list64:length < do peek i in
+          i list list64:get dup hashmap array16:get * total @64 + total !64
+        end inc end drop
+
+        total @64 putu putnl
+      end
+    end
+
+    file fclose drop
+  end
+end 0 end
