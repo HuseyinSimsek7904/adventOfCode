@@ -1,0 +1,62 @@
+macro malloc:ARRAY-SIZE 0x100000 endmacro
+macro malloc:AVAIL-STACK-SIZE 0x100 endmacro
+
+include "dynamic/malloc.corth"
+include "dynamic/utils.corth"
+include "linux_x86/stdio.corth"
+include "collections/list64.corth"
+include "str.corth"
+
+// 140 lines, 141 colums -> < 256 x 256 = 0x10000
+macro BUFFER-SIZE 0x100000 endmacro
+
+// int: row int: col
+macro get-char let _row_ _col_ in _row_ width inc * _col_ + buffer array8:get end endmacro
+
+proc search
+  int int int int ptr int int -> int
+in let row col drow dcol buffer width height in
+  row        col        get-char 'A' =
+  row drow + col dcol + get-char 'M' = &
+  row dcol + col drow - get-char 'M' = &
+  row drow - col dcol - get-char 'S' = &
+  row dcol - col drow + get-char 'S' = & if 1 else 0 end
+end end
+
+proc main
+  int int -> int
+in let argc argv in
+  malloc:init
+
+  "data.txt" drop fopen-r let file in
+    file isn-pos if
+      "could not open file\n" eputs
+      1 exit drop
+    end
+
+    memory buffer 0x10000     and
+           total  sizeof(int) in
+
+      0 total !64
+
+      buffer 0x10000 file fgets let buffer-size in
+        '\n' buffer buffer-size str:find-char let width in
+          buffer-size width inc / let height in
+            0 while dup height < do peek row in
+              0 while dup width < do peek col in
+                row col -1 -1 buffer width height search
+                row col -1  1 buffer width height search +
+                row col  1  1 buffer width height search +
+                row col  1 -1 buffer width height search + total @64 + total !64
+              end inc end drop
+            end inc end drop
+          end
+        end
+      end
+
+      total @64 putu putnl
+    end
+
+    file fclose drop
+  end
+end 0 end
