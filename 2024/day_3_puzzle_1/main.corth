@@ -1,0 +1,97 @@
+macro malloc:ARRAY-SIZE 0x100000 endmacro
+macro malloc:AVAIL-STACK-SIZE 0x100 endmacro
+
+include "dynamic/malloc.corth"
+include "dynamic/utils.corth"
+include "linux_x86/stdio.corth"
+include "collections/list64.corth"
+
+// I wish there was a regex engine for Corth...
+
+// mul([0-9]*,[0-9]*)
+
+proc main
+  int int -> int
+in let argc argv in
+  malloc:init
+
+  "data.txt" drop fopen-r let file in
+    memory stage  sizeof(int) and
+           total  sizeof(int) and
+           left   sizeof(int) and
+           right  sizeof(int) and
+           token  16          and
+           length sizeof(int) and
+           buffer 1           in
+
+      // 0 -> reset
+      // 1 -> m
+      // 2 -> mu
+      // 3 -> mul
+      // 4 -> mul(
+      // 5 -> mul([0-9]+
+      // 6 -> mul([0-9]+,
+      // 7 -> mul([0-9]+,[0-9]+
+      0 stage !64
+      0 total !64
+
+      while buffer 1 file fgets isn-zero do
+        stage @64 0 = if
+          buffer @8 'm' = if 1 else 0 end stage !64
+
+        else stage @64 1 = if
+          buffer @8 'u' = if 2 else 0 end stage !64
+
+        else stage @64 2 = if
+          buffer @8 'l' = if 3 else 0 end stage !64
+
+        else stage @64 3 = if
+          buffer @8 '(' = if
+            0 length !64
+            4 stage !64
+          else
+            0 stage !64
+          end
+
+        else stage @64 4 =
+             stage @64 5 = | if
+
+          buffer @8 is-ddigit if
+            buffer @8 length @64 token array8:set
+            length @inc64
+            5 stage !64
+          else stage @64 5 = buffer @8 ',' = & if
+            token length @64 left convd drop
+            6 stage !64
+            0 length !64
+          else
+            0 stage !64
+          end end
+
+        else stage @64 6 =
+             stage @64 7 = | if
+
+           buffer @8 is-ddigit if
+             buffer @8 length @64 token array8:set
+             length @inc64
+             7 stage !64
+
+           else
+             stage @64 7 = buffer @8 ')' = & if
+               token length @64 right convd drop
+               left @64 right @64 * total @64 + total !64
+             end
+             0 stage !64
+           end
+        else
+          "unknown stage\n" eputs
+          1 exit drop
+        end end end end end end
+      end
+
+      total @64 putu putnl
+    end
+
+    file fclose drop
+  end
+end 0 end
