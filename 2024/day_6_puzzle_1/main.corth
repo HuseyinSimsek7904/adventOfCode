@@ -1,0 +1,102 @@
+macro malloc:ARRAY-SIZE 0x100000 endmacro
+macro malloc:AVAIL-STACK-SIZE 0x100 endmacro
+
+include "dynamic/malloc.corth"
+include "dynamic/utils.corth"
+include "linux_x86/stdio.corth"
+include "collections/list64.corth"
+include "linux_x86/sys.corth"
+include "str.corth"
+
+
+proc find-guard
+  // ptr: buffer int: width int: heigth -> int: row int: col
+  ptr int int -> int int
+in let buffer width height in
+  0 while dup height < do let row in
+    0 while dup width < do let col in
+      row width inc * col + buffer array8:get '^' = if
+        '.' row width inc * col + buffer array8:set
+        row col return
+      end
+    col end inc end drop
+  row end inc end drop
+
+  "no guard\n" eputs
+  1 exit drop
+end 0 0 end
+
+macro BUFFER-SIZE 0x10000 endmacro
+
+proc main
+  int int -> int
+in let argc argv in
+  malloc:init
+
+  "data.txt" drop fopen-r let file in
+    file isn-pos if
+      "could not open file\n" eputs
+      1 exit drop
+    end
+
+    memory buffer BUFFER-SIZE and
+           total  sizeof(int) in
+
+      0 total !64
+
+      buffer BUFFER-SIZE file fgets let buffer-size in
+        '\n' buffer buffer-size str:find-char let width in
+          buffer-size width inc / let height in
+            memory row sizeof(int) and
+                   col sizeof(int) and
+                   dir sizeof(int) in
+
+              buffer width height find-guard col !64 row !64
+
+              0 dir !64 // 0: up, 1: right, 2: down, 3: left
+
+              while true do
+                row @64 width inc * col @64 + buffer + let addr in
+                  addr @8 '.' = if
+                    'x' addr !8
+                    total @inc64
+                  end
+                end
+
+                while true do
+                       dir @64 0 = if -1  0
+                  else dir @64 1 = if  0  1
+                  else dir @64 2 = if  1  0
+                  else dir @64 3 = if  0  -1
+                  else
+                    "invalid dir\n" eputs
+                    1 exit drop
+                    0 0
+                  end end end end
+
+                  col @64 + let new-col in row @64 + let new-row in
+                    new-col 0 <
+                    new-col width > |
+                    new-row 0 < |
+                    new-row height > | if
+                      total @64 putu putnl
+                      0 exit drop
+                    end
+
+                    new-row width inc * new-col + buffer array8:get '#' != if
+                      new-row row !64
+                      new-col col !64
+                    break end
+                    dir @64 inc 4 % dir !64
+                  end end
+                end
+              end
+            end
+          end
+        end
+      end
+    end
+
+    file fclose drop
+  end
+end 0 end
