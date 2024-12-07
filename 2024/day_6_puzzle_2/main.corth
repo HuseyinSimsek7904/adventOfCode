@@ -1,0 +1,119 @@
+macro malloc:ARRAY-SIZE 0x100000 endmacro
+macro malloc:AVAIL-STACK-SIZE 0x100 endmacro
+
+include "linux_x86/stdio.corth"
+include "linux_x86/sys.corth"
+include "str.corth"
+
+
+proc find-guard
+  // ptr: buffer int: width int: heigth -> int: row int: col
+  ptr int int -> int int
+in let buffer width height in
+  0 while dup height < do let row in
+    0 while dup width < do let col in
+      row width inc * col + buffer array8:get '^' = if
+        '.' row width inc * col + buffer array8:set
+        row col return
+      end
+    col end inc end drop
+  row end inc end drop
+
+  "no guard\n" eputs
+  1 exit drop
+end 0 0 end
+
+macro BUFFER-SIZE 0x10000 endmacro
+
+proc pow2 int -> int in let n in
+       n 0 = if 1
+  else n 1 = if 2
+  else n 2 = if 4
+  else n 3 = if 8
+  else
+    "invalid n\n" eputs
+    1 exit drop
+    0
+  end end end end
+end end
+
+proc is-loop
+  // ptr: buffer int: width int: height int: row int: col int: dir -> bool: is-loop
+  ptr int int int int int -> bool
+in let buffer width height _row _col _dir in
+  _row _col _dir while true do let row col dir in
+         dir 0 = if row dec col
+    else dir 1 = if row     col inc
+    else dir 2 = if row inc col
+    else dir 3 = if row     col dec
+    else
+      "invalid dir\n" eputs
+      1 exit drop
+      0 0
+    end end end end let new-row new-col in
+      new-row 0 <
+      new-row height >= |
+      new-col 0 < |
+      new-col width >= | if
+        false return
+      end
+
+      new-row width inc * new-col + buffer array8:get let block in
+        block '#' = if
+          row col dir inc 4 %
+        else
+          block '.' - dir pow2 && isn-zero if true return end
+
+          block '.' - dir pow2 || '.' + new-row width inc * buffer new-col + array8:set
+
+          new-row new-col dir
+        end
+      end
+    end
+  end end drop drop drop
+end false end
+
+proc main
+  int int -> int
+in let argc argv in
+  "data.txt" drop fopen-r let file in
+    file isn-pos if
+      "could not open file\n" eputs
+      1 exit drop
+    end
+
+    memory buffer BUFFER-SIZE and
+           total  sizeof(int) in
+
+      0 total !64
+
+      buffer BUFFER-SIZE file fgets let buffer-size in
+        '\n' buffer buffer-size str:find-char let width in
+          buffer-size width inc / let height in
+            buffer width height find-guard let row col in
+              0 while dup buffer-size < do peek i in
+                i buffer array8:get '.' = if
+                  '#' i buffer array8:set
+
+                  memory copy BUFFER-SIZE in
+                    buffer copy buffer-size memcpy8
+
+                    copy width height row col 0 is-loop if
+                      total @inc64
+                    end
+                  end
+
+                  '.' i buffer array8:set
+                end
+              end inc end drop
+            end
+          end
+        end
+      end
+
+      total @64 putu putnl
+    end
+
+    file fclose drop
+  end
+end 0 end
