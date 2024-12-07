@@ -1,0 +1,142 @@
+macro malloc:ARRAY-SIZE 0x100000 endmacro
+macro malloc:AVAIL-STACK-SIZE 0x100 endmacro
+
+include "dynamic/malloc.corth"
+include "dynamic/utils.corth"
+include "linux_x86/stdio.corth"
+include "collections/list64.corth"
+include "linux_x86/sys.corth"
+include "str.corth"
+
+
+proc find-char-after
+  // char: pattern ptr: search int: after int: search-length -> int: first-occurrence
+  int ptr int int -> int
+  // Returns the index if found, <0 otherwise.
+in
+  memory search sizeof(ptr) in
+    let after search-length in
+      after + search !64
+
+      let pattern in
+        after while dup search-length < do
+          search @64 @8 pattern = if return end
+
+          search @inc64
+        inc end drop
+      end
+    end
+  end
+-1 end
+
+macro HASH_SIZE 0x10000 endmacro
+
+
+proc check-safe
+  // ptr: hash ptr: line -> bool: safe
+  ptr ptr -> bool
+in let hash line in
+  memory prev sizeof(ptr) in
+    list64:init prev !64
+
+    0 while dup line list64:length < do let i in
+      0 while dup prev list64:length < do let j in
+        i line list64:get 0x100 * j prev list64:get + hash + @bool if
+          prev list64:mfree drop
+          false return
+        end
+      j end inc end drop
+
+      i line list64:get prev list64:append
+    i end inc end drop
+
+    prev list64:mfree drop
+  end
+end true end
+
+
+proc main
+  int int -> int
+in let argc argv in
+  malloc:init
+
+  "data.txt" drop fopen-r let file in
+    file isn-pos if
+      "could not open file\n" eputs
+      1 exit drop
+    end
+
+    memory buffer 0x100       and
+           total  sizeof(int) and
+           hash   HASH_SIZE   in
+
+      0 total !64
+
+      hash while dup hash HASH_SIZE + < do
+        dup !reset
+      inc end drop
+
+      while
+        buffer 6 file fgets let length in
+          length 6 != if
+            "invalid data\n" eputs
+            1 exit drop
+          end
+        end
+
+        0 buffer array8:get '\n' != do
+
+        memory left   sizeof(int) and
+               right  sizeof(int) in
+
+          buffer     2 left  convd drop
+          buffer 3 + 2 right convd drop
+
+          left @64 0x100 * right @64 + hash + !set
+        end
+      end
+
+      file -5 SEEK-WHENCE:CUR lseek drop
+
+      memory line sizeof(ptr) in
+        list64:init line !64
+
+        while buffer 256 file fgets dup isn-zero do let length in
+          0 line list64:length-addr !64
+          '\n' buffer length str:find-char let index in
+            index is-neg if
+              "invalid data\n" eputs
+              1 exit drop
+            end
+
+            file index length - inc SEEK-WHENCE:CUR lseek drop
+
+            0 while true do let i in
+              ',' buffer i length index min2 find-char-after let right in
+
+                right is-neg if
+                  index length min2
+                else right end i - let token-length in
+                  memory number sizeof(int) in
+                    buffer i + token-length number convd drop
+                    number @64 line list64:append
+                  end
+                end
+
+                right right is-neg if break end
+              end
+            end inc end drop
+          end
+
+          hash line check-safe if
+            line list64:length 2 / line list64:get total @64 + total !64
+          end
+        end end drop
+      end
+
+      total @64 putu putnl
+    end
+
+    file fclose drop
+  end
+end 0 end
