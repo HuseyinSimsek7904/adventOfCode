@@ -1,0 +1,108 @@
+macro malloc:ARRAY-SIZE 0x100000 endmacro
+macro malloc:AVAIL-STACK-SIZE 0x100 endmacro
+
+include "dynamic/malloc.corth"
+include "dynamic/utils.corth"
+include "collections/list64.corth"
+include "linux_x86/stdio.corth"
+include "linux_x86/sys.corth"
+include "str.corth"
+
+
+proc try-solve
+  // ptr: list int: index int: current int: result -> bool: possible
+  ptr int int int -> bool
+in let list index current result in
+  index list list64:length = if
+    current result = return
+  end
+
+  list index inc index list list64:get current + result try-solve
+  list index inc index list list64:get current * result try-solve |
+end end
+
+
+proc main
+  int int -> int
+in let argc argv in
+  malloc:init
+
+  "data.txt" drop fopen-r let file in
+    file isn-pos if
+      "could not open file\n" eputs
+      1 exit drop
+    end
+
+    memory token  0x10        and
+           length sizeof(int) and
+           buffer 1           and
+           list   sizeof(ptr) and
+           result sizeof(int) and
+           state  sizeof(int) and
+           total  sizeof(int) and
+           number sizeof(int) in
+
+      0 state !64
+      0 length !64
+      0 total !64
+
+      list64:init list !64
+
+      while true do
+        buffer 1 file fgets is-zero if break end
+
+        state @64 0 = if
+          buffer @8 ':' = if
+            // ignore the next char
+            buffer 1 file fgets drop
+            token length @64 result convd drop
+            0 length !64
+            1 state !64
+
+          else buffer @8 is-ddigit if
+             buffer @8 length @64 token array8:set
+             length @inc64
+
+          else
+            "invalid data\n" eputs
+            1 exit drop
+          end end
+
+        else state @64 1 = if
+          buffer @8 ' ' = if
+            token length @64 number convd drop
+            number @64 list list64:append
+            0 length !64
+
+          else buffer @8 '\n' = if
+            token length @64 number convd drop
+            number @64 list list64:append
+            0 length !64
+            0 state !64
+
+            list 1 0 list list64:get result @64 try-solve if
+              result @64 total @64 + total !64
+            end
+            0 list list64:length-addr !64
+
+          else buffer @8 is-ddigit if
+            buffer @8 length @64 token array8:set
+            length @inc64
+
+          else
+            "invalid data\n" eputs
+            1 exit drop
+          end end end
+
+        else
+          "invalid state\n" eputs
+          1 exit drop
+        end end
+      end
+
+      total @64 putu putnl
+    end
+
+    file fclose drop
+  end
+end 0 end
