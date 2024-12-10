@@ -1,0 +1,67 @@
+macro malloc:ARRAY-SIZE 0x100000 endmacro
+macro malloc:AVAIL-STACK-SIZE 0x100 endmacro
+
+include "dynamic/malloc.corth"
+include "dynamic/utils.corth"
+include "collections/list64.corth"
+include "linux_x86/stdio.corth"
+include "linux_x86/sys.corth"
+include "str.corth"
+
+macro BUFFER-SIZE 0x10000 endmacro
+
+macro check-pos let _x_ _y_ in
+  _x_ 0 >=
+  _x_ width < &
+  _y_ 0 >= &
+  _y_ height < &
+  _y_ width inc * _x_ + other array8:get '#' != & if
+    total @inc64
+    '#' _y_ width inc * _x_ + other array8:set
+  end
+end endmacro
+
+proc main
+  int int -> int
+in let argc argv in
+  malloc:init
+
+  "data.txt" drop fopen-r let file in
+    file isn-pos if
+      "could not open file\n" eputs
+      1 exit drop
+    end
+
+    memory buffer BUFFER-SIZE and
+           other  BUFFER-SIZE and
+           total  sizeof(int) in
+
+      0 total !64
+
+      buffer BUFFER-SIZE file fgets let size in
+      buffer other size memcpy8
+        '\n' buffer size str:find-char let width in
+          size width inc / let height in
+            0 while dup size < do peek i in
+              i buffer array8:get '\n' != i buffer array8:get '.' != & if
+                0 while dup i < do peek j in
+                  i buffer array8:get j buffer array8:get = if
+                    i width inc % i width inc / j width inc % j width inc / let ix iy jx jy in
+                      ix ix + jx - iy iy + jy - check-pos
+                      jx jx + ix - jy jy + iy - check-pos
+                    end
+                  end
+                end inc end drop
+              end
+            end inc end drop
+          end
+        end
+      end
+
+
+      total @64 putu putnl
+    end
+
+    file fclose drop
+  end
+end 0 end
