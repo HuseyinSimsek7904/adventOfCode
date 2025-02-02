@@ -1,0 +1,52 @@
+macro malloc:ARRAY-SIZE 0x100000 endmacro
+macro malloc:AVAIL-STACK-SIZE 0x100 endmacro
+
+include "dynamic/malloc.corth"
+include "dynamic/utils.corth"
+include "collections/list64.corth"
+include "linux_x86/stdio.corth"
+include "linux_x86/sys.corth"
+include "str.corth"
+
+macro BUFFER-SIZE  20000 endmacro
+macro ARRAY-SIZE  180000 endmacro
+
+proc main
+  int int -> int
+in let argc argv in
+  malloc:init
+
+  "data.txt" drop fopen-r let file in
+    file isn-pos if
+      "could not open file\n" eputs
+      1 exit drop
+    end
+
+    memory buffer BUFFER-SIZE and
+           left   sizeof(int) and
+           right  sizeof(int) and
+           id     sizeof(int) and
+           sum    sizeof(int) in
+
+      buffer BUFFER-SIZE file fgets let buffer-size in
+        0 id !64
+        0 left !64
+        size inc right !64
+
+        while true do
+          left buffer array8:get '0' - let left-num in
+            left @64 is-even if
+
+            else
+            end
+            left @dec64
+         end
+        end
+
+        left buffer array8:get
+      end
+    end
+
+    file fclose drop
+  end
+end 0 end
